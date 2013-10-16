@@ -48,7 +48,7 @@ public class TKYServer extends HttpServlet {
 		String s = req.getParameter("json");// 得到客户端发送的请求
 		System.out.println("doPost();"+s);
 		if(s==null){
-			
+			System.out.println("1");
 		}
 		else{
 			PrintWriter out = null;
@@ -58,13 +58,28 @@ public class TKYServer extends HttpServlet {
 				String flag = jsonObject.getString(JSONKey.FLAG);
 
 				System.out.println("doPost();s is null and flag=" + flag);
-				if (flag.equals("Welcom")) {
-					jsonObject.put(JSONKey.WELCOM_LOG, "联网成功");
-				}else if(flag.equals("spinner")){
-					System.out.println("spinner");
-					searchForSpinner(jsonObject);
-				}else{
-					System.out.println("flag====error===>"+flag);
+				switch (flag) {
+					case JSONKey.FLAG_WELCOM:
+						jsonObject.put(JSONKey.WELCOM_LOG, "联网成功");
+						break;
+					case JSONKey.FLAG_CHI:
+						//获取来自于dbo.chi这张数据表的数据
+						jsonObject = searchForChi(jsonObject);
+						System.out.println("chi");
+						break;
+					case JSONKey.FLAG_LOGIN:
+						System.out.println("flag_login");
+						break;
+					case JSONKey.FLAG_HE:
+						System.out.println("he");
+						break;
+					case JSONKey.FLAG_ORDER:
+						CreatOrder creat = new CreatOrder();
+						jsonObject.put(JSONKey.FLAG_ORDER, creat.creatOrderC());
+						break;
+					default:
+						System.out.println("正在研发中。。。"+flag);
+						break;
 				}
 				resp.setContentType("text/plain");
 				resp.setCharacterEncoding("UTF-8");
@@ -78,20 +93,56 @@ public class TKYServer extends HttpServlet {
 				out.close();
 		}
 	}
-
-	public static Connection getConnection() {
-		Connection conn = null;
+	public static JSONObject searchForChi(JSONObject jsonObject) throws JSONException{
+		conn = DBHelper.getConnection();
 		try {
-			Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
-			conn =DriverManager.getConnection("jdbc:sqlserver://172.20.99.79:1433;DatabaseName=mms","sa","123456");// 创建本地数据连接;
-			System.out.println("connection create success");
-		} catch (Exception e) {
-			System.out.println("connection create failed");
+			String sql = "select * from chi";
+			System.out.println("==============1========>");
+			// 创建用于执行静态sql语句的Statement对象
+			st = (Statement) conn.createStatement();
+			ResultSet rs = st.executeQuery(sql);
+			String imgClass;
+			String imgUrl;
+			String title;
+			float money;
+			int isHave;
+			int imgCount;
+			String imgId;
+			int num = 0;
+			while (rs.next()){
+				num = num + 1;
+				System.out.println("=========================================================================>");
+				imgId = rs.getString("imgid");
+				imgClass = rs.getString("imgclass");
+				imgUrl = rs.getString("imgurl");
+				money = rs.getFloat("imgprice");
+				imgCount = rs.getInt("imgcount");
+				isHave = rs.getInt("ishave");
+				title = rs.getString("imgtitle");
+				try {
+					jsonObject.put(JSONKey.jsonKey_class+num, imgClass);
+					jsonObject.put(JSONKey.jsonKey_id+num, imgId);
+					jsonObject.put(JSONKey.jsonKey_count+num, imgCount);
+					jsonObject.put(JSONKey.jsonKey_ishave+num, isHave);
+					jsonObject.put(JSONKey.jsonKey_URL+num, imgUrl);
+					jsonObject.put(JSONKey.jsonKey_title+num, title);
+					jsonObject.put(JSONKey.jsonKey_price+num, money);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			 }
+			jsonObject.put(JSONKey.TotalNum, num);
+			System.out.println("chi:"+jsonObject.toString());
+			// 关闭数据库连接
+			conn.close();
+			return jsonObject;
+		} catch (SQLException e) {
+			System.out.println("插入数据失败" + e.getMessage());
 		}
-		return conn;
+		return null;
 	}
 	public static JSONObject searchForSpinner(JSONObject jsonObject){
-		conn = getConnection();
+		conn = DBHelper.getConnection();
 		try {
 			String sql = "select * from photo200 WHERE datatime = ( SELECT max([datatime]) FROM photo200)";
 			// 创建用于执行静态sql语句的Statement对象
